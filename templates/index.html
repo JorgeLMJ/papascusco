@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procesador de Imágenes</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* Estilos para el spinner de carga */
+        #loadingSpinner {
+            display: none;
+            border: 8px solid #f3f3f3; /* Color gris claro */
+            border-top: 8px solid #3498db; /* Color azul */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 10px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Sube una Imagen para Procesar</h1>
+        <form id="uploadForm" enctype="multipart/form-data">
+            <input type="file" name="image" id="image" accept="image/*">
+            <br><br>    
+            <button type="submit">Subir Imagen</button>
+            <br><br>
+            <button type="button" id="activateCamera">Activar Cámara</button>
+            <br><br>
+            <button type="button" id="clearButton">Limpiar</button> <!-- Botón Limpiar -->
+        </form>
+        
+        <div id="result"></div>
+        <img id="imagePreview" src="" alt="Imagen a cargar" style="display: none;">
+        <video id="video" width="320" height="240" autoplay style="display: none;"></video>
+        <canvas id="canvas" width="320" height="240" style="display: none;"></canvas>
+        <button id="capture" style="display: none;">Capturar Imagen</button>
+
+        <!-- Spinner de Cargando -->
+        <div id="loadingSpinner"></div>
+    </div>
+
+    <script>
+        let cameraActive = false; // Variable para controlar el estado de la cámara
+        let currentStream = null; // Para almacenar la transmisión de la cámara
+
+        document.getElementById("uploadForm").addEventListener("submit", function(event) {
+            event.preventDefault();
+
+            // Mostrar spinner de carga
+            document.getElementById("loadingSpinner").style.display = "block";
+
+            const formData = new FormData();
+            formData.append("image", document.getElementById("image").files[0]);
+
+            fetch("/upload", {
+                method: "POST",
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                // Ocultar el spinner una vez que la carga haya terminado
+                document.getElementById("loadingSpinner").style.display = "none";
+                
+                if (data.prediction) {
+                    document.getElementById("result").innerHTML = "Predicción: " + data.prediction;
+                    document.getElementById("imagePreview").src = data.image_url;
+                    document.getElementById("imagePreview").style.display = "block"; // Mostrar imagen
+                } else {
+                    document.getElementById("result").innerHTML = "Error: " + data.error;
+                }
+            })
+            .catch(error => {
+                // Ocultar el spinner si ocurre un error
+                document.getElementById("loadingSpinner").style.display = "none";
+                document.getElementById("result").innerHTML = "Error en el servidor.";
+            });
+        });
+
+        document.getElementById("activateCamera").addEventListener("click", function() {
+            if (cameraActive) {
+                // Si la cámara está activada, detenerla
+                currentStream.getTracks().forEach(track => track.stop());
+                document.getElementById("video").style.display = "none";
+                document.getElementById("capture").style.display = "none";
+                cameraActive = false;
+                this.textContent = "Activar Cámara"; // Cambiar el texto del botón
+            } else {
+                // Si la cámara no está activada, encenderla
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(function(stream) {
+                        currentStream = stream; // Guardar la transmisión de la cámara
+                        document.getElementById("video").style.display = "block";
+                        document.getElementById("video").srcObject = stream;
+                        document.getElementById("capture").style.display = "inline";
+                        cameraActive = true;
+                        document.getElementById("activateCamera").textContent = "Desactivar Cámara"; // Cambiar el texto del botón
+                    })
+                    .catch(function(error) {
+                        alert("Error al acceder a la cámara: " + error);
+                    });
+                }
+            }
+        });
+
+        document.getElementById("capture").addEventListener("click", function() {
+            const canvas = document.getElementById("canvas");
+            const video = document.getElementById("video");
+            const context = canvas.getContext("2d");
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Mostrar el spinner de carga mientras se captura la imagen
+            document.getElementById("loadingSpinner").style.display = "block";
+
+            canvas.toBlob(function(blob) {
+                const formData = new FormData();
+                formData.append("image", blob);
+
+                fetch("/upload", {
+                    method: "POST",
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    // Ocultar el spinner una vez que la imagen se haya procesado
+                    document.getElementById("loadingSpinner").style.display = "none";
+                    
+                    if (data.prediction) {
+                        document.getElementById("result").innerHTML = "Predicción: " + data.prediction;
+                        document.getElementById("imagePreview").src = data.image_url;
+                        document.getElementById("imagePreview").style.display = "block"; // Mostrar imagen
+                    } else {
+                        document.getElementById("result").innerHTML = "Error: " + data.error;
+                    }
+                })
+                .catch(error => {
+                    // Ocultar el spinner si ocurre un error
+                    document.getElementById("loadingSpinner").style.display = "none";
+                    document.getElementById("result").innerHTML = "Error en el servidor.";
+                });
+            });
+        });
+
+        // Función para limpiar los datos cargados
+        document.getElementById("clearButton").addEventListener("click", function() {
+            // Limpiar campos
+            document.getElementById("image").value = ""; // Limpiar archivo de imagen
+            document.getElementById("result").innerHTML = ""; // Limpiar el resultado
+            document.getElementById("imagePreview").src = ""; // Limpiar la vista previa de la imagen
+            document.getElementById("imagePreview").style.display = "none"; // Ocultar la vista previa de la imagen
+            document.getElementById("video").style.display = "none"; // Ocultar el video
+            document.getElementById("capture").style.display = "none"; // Ocultar el botón de captura
+            if (cameraActive) {
+                currentStream.getTracks().forEach(track => track.stop()); // Detener el flujo de la cámara
+                cameraActive = false;
+                document.getElementById("activateCamera").textContent = "Activar Cámara"; // Cambiar el texto del botón
+            }
+        });
+    </script>
+</body>
+</html>
