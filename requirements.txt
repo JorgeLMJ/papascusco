@@ -5,6 +5,4 @@ sqlparse==0.4.4
 mahotas==1.4.18
 numpy==2.2.0
 opencv-python==4.10.0.84
-pip==22.1.2
-setuptools==62.6.0
-wheel==0.37.1
+unicorn==2.1.1
