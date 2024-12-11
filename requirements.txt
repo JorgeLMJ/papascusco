@@ -5,4 +5,4 @@ sqlparse==0.4.4
 mahotas==1.4.18
 numpy==2.2.0
 opencv-python==4.10.0.84
-unicorn==2.1.1
+gunicorn==19.10.0
